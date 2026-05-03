@@ -27,6 +27,7 @@ docker-compose up -d
 ```
 
 ### Відкрити у браузері
+<img width="625" height="785" alt="Знімок екрана 2026-05-03 203835" src="https://github.com/user-attachments/assets/4c3cdcdd-b80e-42ff-bfc4-dc638b4d0c61" />
 - Web1 (Продюсер): http://localhost:3001
 - Web2 (Споживач): http://localhost:3002
 
@@ -48,3 +49,4 @@ Content-Type: application/vnd.kafka.json.v2+json
     }
   ]
 }
+<img width="605" height="664" alt="Знімок екрана 2026-05-03 191243" src="https://github.com/user-attachments/assets/841604f1-27c5-4352-bb24-8959fed572c3" />
