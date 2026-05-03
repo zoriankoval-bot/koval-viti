@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kafka Web2 — Споживач</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f0f1a;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    h1 { font-size: 1.8rem; color: #a78bfa; margin-bottom: 8px; }
+    .subtitle { color: #888; margin-bottom: 30px; font-size: 0.9rem; }
+    .badge {
+      background: #a78bfa22;
+      color: #a78bfa;
+      border: 1px solid #a78bfa44;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      margin-bottom: 30px;
+    }
+    .card {
+      background: #1a1a2e;
+      border: 1px solid #2a2a4a;
+      border-radius: 12px;
+      padding: 24px;
+      width: 100%;
+      max-width: 560px;
+      margin-bottom: 20px;
+    }
+    .card h2 {
+      font-size: 1rem;
+      color: #aaa;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    input {
+      width: 100%;
+      background: #0f0f1a;
+      border: 1px solid #2a2a4a;
+      border-radius: 8px;
+      color: #e0e0e0;
+      padding: 10px 14px;
+      font-size: 0.95rem;
+      margin-bottom: 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus { border-color: #a78bfa; }
+    .btn-row { display: flex; gap: 10px; }
+    button {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-start { background: #a78bfa; color: #0f0f1a; }
+    .btn-start:hover { background: #8b5cf6; }
+    .btn-stop { background: #2a2a4a; color: #aaa; }
+    .btn-stop:hover { background: #3a3a5a; }
+    .btn-clear { background: #ff4d4d22; color: #ff4d4d; border: 1px solid #ff4d4d44; flex: 0.4; }
+    .messages {
+      width: 100%;
+      max-width: 560px;
+      background: #1a1a2e;
+      border: 1px solid #2a2a4a;
+      border-radius: 12px;
+      padding: 16px;
+      max-height: 340px;
+      overflow-y: auto;
+    }
+    .messages h2 {
+      font-size: 1rem;
+      color: #aaa;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .msg-count {
+      background: #a78bfa33;
+      color: #a78bfa;
+      border-radius: 10px;
+      padding: 2px 8px;
+      font-size: 0.75rem;
+    }
+    .message-item {
+      background: #0f0f1a;
+      border: 1px solid #2a2a4a;
+      border-left: 3px solid #a78bfa;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .message-item .meta {
+      font-size: 0.75rem;
+      color: #666;
+      margin-bottom: 4px;
+    }
+    .message-item .value {
+      font-size: 0.95rem;
+      color: #e0e0e0;
+    }
+    .empty {
+      text-align: center;
+      color: #444;
+      padding: 30px 0;
+      font-size: 0.9rem;
+    }
+    .polling-indicator {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #666;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .polling-indicator.active {
+      background: #a78bfa;
+      animation: pulse 1.2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+  </style>
+</head>
+<body>
+  <h1>📥 Kafka Споживач</h1>
+  <p class="subtitle">Web2 — Отримує повідомлення від Kafka</p>
+  <span class="badge">
+    <span class="polling-indicator" id="pollingDot"></span>
+    <span id="pollingStatus">Очікування</span>
+  </span>
+  <div class="card">
+    <h2>⚙️ Налаштування</h2>
+    <input id="topicInput" type="text" placeholder="Топік" value="chat-messages" />
+    <input id="groupInput" type="text" placeholder="ID групи споживачів" value="web2-group" />
+    <div class="btn-row">
+      <button class="btn-start" onclick="startConsuming()">▶ Старт</button>
+      <button class="btn-stop"  onclick="stopConsuming()">⏹ Стоп</button>
+      <button class="btn-clear" onclick="clearMessages()">🗑</button>
+    </div>
+  </div>
+  <div class="messages">
+    <h2>
+      📨 Повідомлення
+      <span class="msg-count" id="msgCount">0</span>
+    </h2>
+    <div id="messagesContainer">
+      <div class="empty">Повідомлень ще немає. Натисніть Старт для отримання.</div>
+    </div>
+  </div>
+  <script>
+    const KAFKA_REST = 'http://localhost:8082';
+let pollingInterval = null;
+let messageCount = 0;
+
+function setStatus(text, active = false) {
+  document.getElementById('pollingStatus').textContent = text;
+  document.getElementById('pollingDot').classList.toggle('active', active);
+}
+
+function addMessage(topic, partition, offset, key, value) {
+  const container = document.getElementById('messagesContainer');
+  const empty = container.querySelector('.empty');
+  if (empty) empty.remove();
+
+  messageCount++;
+  document.getElementById('msgCount').textContent = messageCount;
+
+  const item = document.createElement('div');
+  item.className = 'message-item';
+  item.innerHTML = `
+    <div class="meta">
+      Топік: <b>${topic}</b> | Розділ: ${partition} | Зсув: ${offset}
+      ${key ? `| Ключ: <b>${key}</b>` : ''}
+      | ${new Date().toLocaleTimeString()}
+    </div>
+    <div class="value">${value}</div>
+  `;
+  container.prepend(item);
+}
+
+async function startConsuming() {
+  const topic = document.getElementById('topicInput').value.trim();
+  const group = document.getElementById('groupInput').value.trim();
+
+  if (!topic || !group) { alert('Топік та ID групи обовязкові'); return; }
+  if (pollingInterval) { alert('Вже запущено. Спочатку зупиніть.'); return; }
+
+  setStatus('Підключення...', true);
+
+  try {
+    // Видаляємо старий consumer якщо є
+    await fetch(`${KAFKA_REST}/consumers/${group}/instances/consumer1`, {
+      method: 'DELETE',
+      headers: { 'Accept': 'application/vnd.kafka.v2+json' }
+    }).catch(() => {});
+
+    // Чекаємо секунду
+    await new Promise(r => setTimeout(r, 1000));
+
+    // Створюємо нового consumer
+    const createRes = await fetch(`${KAFKA_REST}/consumers/${group}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/vnd.kafka.v2+json',
+        'Accept': 'application/vnd.kafka.v2+json'
+      },
+      body: JSON.stringify({
+        name: 'consumer1',
+        format: 'json',
+        'auto.offset.reset': 'earliest'
+      })
+    });
+
+    if (!createRes.ok) {
+      const err = await createRes.json();
+      throw new Error(JSON.stringify(err));
+    }
+
+    const consumer = await createRes.json();
+    const consumerUrl = consumer.base_uri.replace('kafka-rest:8082', 'localhost:8082');
+
+    // Підписуємось на топік
+    const subRes = await fetch(`${consumerUrl}/subscription`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/vnd.kafka.v2+json',
+        'Accept': 'application/vnd.kafka.v2+json'
+      },
+      body: JSON.stringify({ topics: [topic] })
+    });
+
+    if (!subRes.ok) throw new Error('Помилка підписки');
+
+    setStatus('Отримую повідомлення...', true);
+
+    // Опитуємо кожні 2 секунди
+    pollingInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`${consumerUrl}/records?timeout=1000&max_bytes=300000`, {
+          headers: { 'Accept': 'application/vnd.kafka.json.v2+json' }
+        });
+        const records = await res.json();
+        if (Array.isArray(records) && records.length > 0) {
+          records.forEach(r => addMessage(r.topic, r.partition, r.offset, r.key, r.value));
+        }
+      } catch (e) {
+        setStatus('Помилка: ' + e.message, false);
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+      }
+    }, 2000);
+
+  } catch (err) {
+    setStatus('Помилка: ' + err.message, false);
+  }
+}
+
+async function stopConsuming() {
+  clearInterval(pollingInterval);
+  pollingInterval = null;
+  setStatus('Зупинено', false);
+}
+
+function clearMessages() {
+  document.getElementById('messagesContainer').innerHTML =
+    '<div class="empty">Повідомлень ще немає. Натисніть Старт для отримання.</div>';
+  messageCount = 0;
+  document.getElementById('msgCount').textContent = 0;
+}
+  </script>
+</body>
+</html>
