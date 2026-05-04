@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  activemq:
+    image: apache/activemq-classic:5.18.3
+    container_name: activemq
+    ports:
+      - "61616:61616"
+      - "8161:8161"
+      - "61614:61614"
+      - "61613:61613"
+    environment:
+      ACTIVEMQ_ADMIN_LOGIN: admin
+      ACTIVEMQ_ADMIN_PASSWORD: admin
+
+  web1:
+    image: nginx:alpine
+    container_name: web1-activemq
+    ports:
+      - "3001:80"
+    volumes:
+      - ./src/web1:/usr/share/nginx/html
+
+  web2:
+    image: nginx:alpine
+    container_name: web2-activemq
+    ports:
+      - "3002:80"
+    volumes:
+      - ./src/web2:/usr/share/nginx/html

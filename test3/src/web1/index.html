@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ActiveMQ Web1 — Продюсер</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f0f1a;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+    h1 { font-size: 1.8rem; color: #f59e0b; margin-bottom: 8px; }
+    .subtitle { color: #888; margin-bottom: 30px; font-size: 0.9rem; }
+    .badge {
+      background: #f59e0b22;
+      color: #f59e0b;
+      border: 1px solid #f59e0b44;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      margin-bottom: 30px;
+    }
+    .card {
+      background: #1a1a2e;
+      border: 1px solid #2a2a4a;
+      border-radius: 12px;
+      padding: 24px;
+      width: 100%;
+      max-width: 560px;
+      margin-bottom: 20px;
+    }
+    .card h2 {
+      font-size: 1rem;
+      color: #aaa;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    input, textarea {
+      width: 100%;
+      background: #0f0f1a;
+      border: 1px solid #2a2a4a;
+      border-radius: 8px;
+      color: #e0e0e0;
+      padding: 10px 14px;
+      font-size: 0.95rem;
+      margin-bottom: 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus, textarea:focus { border-color: #f59e0b; }
+    textarea { height: 80px; resize: vertical; }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #f59e0b;
+      color: #0f0f1a;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    button:hover { background: #d97706; }
+    button:disabled { background: #444; color: #888; cursor: not-allowed; }
+    .log {
+      width: 100%;
+      max-width: 560px;
+      background: #1a1a2e;
+      border: 1px solid #2a2a4a;
+      border-radius: 12px;
+      padding: 16px;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+    .log h2 {
+      font-size: 1rem;
+      color: #aaa;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .log-entry {
+      font-size: 0.82rem;
+      padding: 6px 10px;
+      border-radius: 6px;
+      margin-bottom: 6px;
+      border-left: 3px solid transparent;
+    }
+    .log-entry.success { background: #f59e0b11; border-color: #f59e0b; color: #f59e0b; }
+    .log-entry.error   { background: #ff4d4d11; border-color: #ff4d4d; color: #ff4d4d; }
+    .log-entry.info    { background: #4d9fff11; border-color: #4d9fff; color: #4d9fff; }
+    .status-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #ff4d4d;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    .status-dot.online { background: #f59e0b; }
+  </style>
+</head>
+<body>
+  <h1>⚡ ActiveMQ Продюсер</h1>
+  <p class="subtitle">Web1 — Надсилає повідомлення до ActiveMQ</p>
+  <span class="badge">
+    <span class="status-dot" id="statusDot"></span>
+    <span id="statusText">Підключення...</span>
+  </span>
+  <div class="card">
+    <h2>📤 Надіслати повідомлення</h2>
+    <input id="queueInput" type="text" placeholder="Черга (queue)" value="chat-messages" />
+    <textarea id="messageInput" placeholder="Текст повідомлення...">Привіт від Web1!</textarea>
+    <button id="sendBtn" onclick="sendMessage()">Надіслати до ActiveMQ</button>
+  </div>
+  <div class="log">
+    <h2>📋 Журнал подій</h2>
+    <div id="logContainer"></div>
+  </div>
+  <script>
+    let stompClient = null;
+
+    function log(msg, type = 'info') {
+      const container = document.getElementById('logContainer');
+      const entry = document.createElement('div');
+      entry.className = `log-entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      container.prepend(entry);
+    }
+
+    function connect() {
+        const ws = new WebSocket('ws://localhost:61614', ['stomp']);
+        stompClient = Stomp.over(ws);
+        stompClient.heartbeat.outgoing = 0;
+        stompClient.heartbeat.incoming = 0;
+        stompClient.debug = null;
+
+        stompClient.connect('admin', 'admin', () => {
+            document.getElementById('statusDot').classList.add('online');
+            document.getElementById('statusText').textContent = 'ActiveMQ підключено';
+            log('Підключено до ActiveMQ WebSocket', 'success');
+        }, (err) => {
+            document.getElementById('statusDot').classList.remove('online');
+            document.getElementById('statusText').textContent = 'Відключено';
+            log('Помилка підключення — повторна спроба...', 'error');
+            setTimeout(connect, 3000);
+        });
+    }
+
+    function sendMessage() {
+      const queue = document.getElementById('queueInput').value.trim();
+      const message = document.getElementById('messageInput').value.trim();
+
+      if (!queue || !message) {
+        log('Черга та повідомлення обовязкові!', 'error');
+        return;
+      }
+
+      if (!stompClient || !stompClient.connected) {
+        log('Не підключено до ActiveMQ!', 'error');
+        return;
+      }
+
+      stompClient.send(`/queue/${queue}`, {}, message);
+      log(`✓ Надіслано до черги "${queue}": "${message}"`, 'success');
+    }
+
+    document.getElementById('messageInput').addEventListener('keydown', e => {
+      if (e.ctrlKey && e.key === 'Enter') sendMessage();
+    });
+
+    connect();
+  </script>
+</body>
+</html>
